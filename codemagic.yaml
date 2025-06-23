@@ -1,0 +1,80 @@
+workflows:
+  flutter-pos-build:
+    name: "POS Flutter - Build"
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    
+    environment:
+      vars:
+        PACKAGE_NAME: "com.mitienda.pos"
+        APP_NAME: "POS WooCommerce"
+      flutter: stable
+      
+    scripts:
+      - name: "📋 Verificar Flutter"
+        script: |
+          flutter doctor -v
+          flutter --version
+          
+      - name: "🔧 Crear estructura de proyecto"
+        script: |
+          # Crear proyecto temporal para obtener estructura completa
+          cd /tmp
+          flutter create flutter_pos_temp \
+            --org com.mitienda \
+            --project-name pos_woocommerce \
+            --platforms android,windows
+          
+          # Copiar estructura al proyecto actual
+          cp -r flutter_pos_temp/android $CM_BUILD_DIR/
+          cp -r flutter_pos_temp/windows $CM_BUILD_DIR/
+          
+          # Limpiar temporal
+          rm -rf flutter_pos_temp
+          
+      - name: "📝 Configurar Android"
+        script: |
+          # Configurar local.properties
+          echo "flutter.sdk=$HOME/programs/flutter" > "$CM_BUILD_DIR/android/local.properties"
+          
+          # Actualizar ApplicationId
+          sed -i.bak 's/com.example.pos_woocommerce/com.mitienda.pos/g' android/app/build.gradle
+          
+          # Actualizar nombre de app
+          sed -i.bak 's/pos_woocommerce/POS WooCommerce/g' android/app/src/main/AndroidManifest.xml
+          
+      - name: "📦 Instalar dependencias Flutter"
+        script: |
+          flutter clean
+          flutter pub get
+          
+      - name: "🔍 Verificar dependencias"
+        script: |
+          flutter pub deps
+          cat pubspec.lock
+          
+      - name: "🏗️ Build APK para Android"
+        script: |
+          flutter build apk --release \
+            --build-name=1.0.0 \
+            --build-number=1 \
+            --verbose
+            
+      - name: "🏗️ Build EXE para Windows" 
+        script: |
+          flutter config --enable-windows-desktop
+          flutter build windows --release --verbose
+        ignore_failure: true
+        
+    artifacts:
+      - build/**/outputs/**/*.apk
+      - build/windows/runner/Release/**/*
+      - "*.log"
+      
+    publishing:
+      email:
+        recipients:
+          - tu-email@ejemplo.com
+        notify:
+          success: true
+          failure: true
